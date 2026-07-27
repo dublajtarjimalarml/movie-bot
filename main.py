@@ -6,7 +6,7 @@ import telebot
 from telebot import types
 
 # --- SOZLAMALAR ---
-BOT_TOKEN = "8895763314:AAE9oKKLNi71EqUgdzsB5e23BQ91qEJ0J2g"
+BOT_TOKEN = "8895763314:AAGk8HVxRRiSMseyvh6dx672wvDfaZYklzY"
 bot = telebot.TeleBot(BOT_TOKEN)
 
 ADMIN_ID = 0  # Shu yerga o'zingizning Telegram ID'ingizni yozing
