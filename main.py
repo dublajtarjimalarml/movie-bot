@@ -5,7 +5,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 
 # --- SOZLAMALAR ---
-BOT_TOKEN = "8895763314:AAHXbwvgDqRtLU832zqnT3fSUf7uMGeFHS4"
+BOT_TOKEN = "8895763314:AAGXgZI3TzvU2O7dDPjveKbUZ6FAEj_NCyA"
 # Supabase parolingizni moslang:
 DB_URL = "postgresql://postgres:minlienferuza@db.traxqticwscihsnargez.supabase.co:5432/postgres"
 
