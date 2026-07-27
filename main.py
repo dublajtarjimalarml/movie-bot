@@ -3,7 +3,7 @@ import sqlite3
 from telebot import types
 
 # --- SOZLAMALAR ---
-BOT_TOKEN = "8895763314:AAEQ-Na92JVr4QErP7zsTaa-G-3ndzitKUw"
+BOT_TOKEN = "8895763314:AAE9oKKLNi71EqUgdzsB5e23BQ91qEJOJ2g"
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # Sizning Telegram user ID-singiz (Admin sifatida tanish uchun)
