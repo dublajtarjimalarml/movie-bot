@@ -4,15 +4,17 @@ import telebot
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-# --- SOZLAMALAR (O'ZINGIZNIKI BILAN ALMASHTIRING) ---
+# --- SOZLAMALAR ---
 BOT_TOKEN = "8895763314:AAGk8HVxRRiSMseyvh6dx672wvDfaZYklzY"
+# Supabase parolingizni PAROLINGIZ o'rniga yozing:
 DB_URL = "postgresql://postgres:minlienferuza@db.traxqticwscihsnargez.supabase.co:5432/postgres"
 
-ADMIN_ID = 5736752273  # O'zingizning Telegram ID ingiz
-# Shaxsiy kanallar ro'yxati (ID va taklif havolalari)
+ADMIN_ID = 5736752273  # Sizning Telegram ID ingiz
+
+# Shaxsiy yoki ochiq kanallar ro'yxati (ID va taklif havolalari)
 CHANNELS = [
-    {"id": --1003944114251, "link": "https://t.me/+YSnX_ktYFEoxMzAy"},
-    {"id": --1004298187068, "link": "https://t.me/MLdublaj"}
+    {"id": -1003944114251, "link": "https://t.me/+YSnX_ktYFEoxNzAy"},
+    {"id": -1004298187068, "link": "https://t.me/MLdublaj"}
 ]
 
 bot = telebot.TeleBot(BOT_TOKEN)
@@ -59,18 +61,18 @@ def add_user(user_id):
 def check_sub(user_id):
     for ch in CHANNELS:
         try:
-            member = bot.get_chat_member(ch, user_id)
+            member = bot.get_chat_member(ch["id"], user_id)
             if member.status in ['left', 'kicked']:
                 return False
-        except Exception:
+        except Exception as e:
+            print(f"Check sub error: {e}")
             return False
     return True
 
 def sub_markup():
     markup = telebot.types.InlineKeyboardMarkup()
-    for ch in CHANNELS:
-        ch_clean = ch.replace('@', '')
-        markup.add(telebot.types.InlineKeyboardButton(text=f"A'zo bo'lish ({ch})", url=f"https://t.me/{ch_clean}"))
+    for i, ch in enumerate(CHANNELS, 1):
+        markup.add(telebot.types.InlineKeyboardButton(text=f"{i}-kanalga a'zo bo'lish ➕", url=ch["link"]))
     markup.add(telebot.types.InlineKeyboardButton(text="Tekshirish 🔄", callback_data="check"))
     return markup
 
@@ -85,7 +87,7 @@ def start_cmd(message):
             reply_markup=sub_markup()
         )
         return
-    bot.send_message(message.chat.id, "Xush kelibsiz! Kine kodini yuboring:")
+    bot.send_message(message.chat.id, "Xush kelibsiz! Kino kodini yuboring:")
 
 @bot.callback_query_handler(func=lambda call: call.data == "check")
 def check_callback(call):
@@ -95,7 +97,7 @@ def check_callback(call):
     else:
         bot.answer_callback_query(call.id, "Barcha kanallarga a'zo bo'lmadingiz!", show_alert=True)
 
-# --- ADMIN BUYRUKLARI ---
+# --- ADMIN BUYRUQLARI ---
 @bot.message_handler(commands=['stat'])
 def stat_cmd(message):
     if message.from_user.id != ADMIN_ID:
@@ -114,13 +116,12 @@ def stat_cmd(message):
 def add_range_cmd(message):
     if message.from_user.id != ADMIN_ID:
         return
-    bot.send_message(message.chat.id, "Kinolarni ketma-ket yuboring (Format: file_id caption yoki oddiy video shaklida). Shuningdek kodingiz mantiqiga qarab yuklashingiz mumkin.")
+    bot.send_message(message.chat.id, "Kinolarni birma-bir video shaklida yuboring. Bot ularga avtomatik ravishda tartib kodi biriktirib boradi.")
 
 @bot.message_handler(commands=['del_range'])
 def del_range_cmd(message):
     if message.from_user.id != ADMIN_ID:
         return
-    # Masalan: /del_range 10 20
     try:
         parts = message.text.split()
         start_code = int(parts[1])
@@ -132,15 +133,15 @@ def del_range_cmd(message):
         conn.commit()
         cur.close()
         conn.close()
-        bot.send_message(message.chat.id, f"{start_code}-{end_code} oralig'idagi kinolar o'chirildi.")
-    except Exception as e:
-        bot.send_message(message.chat.id, f"Xatolik: /del_range boshlangich_kod tugash_kod (Masalan: /del_range 10 20)")
+        bot.send_message(message.chat.id, f"✅ {start_code}-{end_code} oralig'idagi kinolar o'chirildi.")
+    except Exception:
+        bot.send_message(message.chat.id, "Xatolik! Buyruq formati: /del_range 10 20 (masalan, 10 dan 20 gacha bo'lgan kodlar o'chiriladi).")
 
 # --- KINO KODINI QIDIRISH ---
 @bot.message_handler(func=lambda m: m.text and m.text.isdigit())
 def get_movie(message):
     if not check_sub(message.from_user.id):
-        bot.send_message(message.chat.id, "Avval kanallarga a'zo bo'ling:", reply_markup=sub_markup())
+        bot.send_message(message.chat.id, "Kino ko'rish uchun avval kanallarga a'zo bo'ling:", reply_markup=sub_markup())
         return
     
     code = int(message.text)
@@ -154,7 +155,7 @@ def get_movie(message):
     if movie:
         bot.send_video(message.chat.id, movie['file_id'], caption=movie['caption'])
     else:
-        bot.send_message(message.chat.id, "Bunday kodli kino topilmadi.")
+        bot.send_message(message.chat.id, "❌ Bunday kodli kino topilmadi.")
 
 # --- KINO QO'SHISH (ADMIN VIDEO YUBORGANIDA) ---
 @bot.message_handler(content_types=['video'])
@@ -167,15 +168,16 @@ def handle_video(message):
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("SELECT MAX(code) FROM movies")
-    max_code = cur.fetchone()['max']
-    new_code = 1 if max_code is None else max_code + 1
+    res = cur.fetchone()
+    max_code = res['max'] if res and res['max'] is not None else 0
+    new_code = max_code + 1
     
     cur.execute("INSERT INTO movies (code, file_id, caption) VALUES (%s, %s, %s)", (new_code, file_id, caption))
     conn.commit()
     cur.close()
     conn.close()
     
-    bot.send_message(message.chat.id, f"Kino saqlandi! KODI: {new_code}")
+    bot.send_message(message.chat.id, f"✅ Kino saqlandi!\n🎬 KODI: {new_code}")
 
 # --- FLASK KEEP-ALIVE SERVER ---
 app = Flask(__name__)
@@ -190,7 +192,3 @@ def run_flask():
 if __name__ == '__main__':
     Thread(target=run_flask).start()
     bot.infinity_polling()
-
-
-
-
