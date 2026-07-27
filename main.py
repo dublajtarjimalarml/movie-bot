@@ -5,16 +5,16 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 
 # --- SOZLAMALAR ---
-BOT_TOKEN = "8895763314:AAGk8HVxRRiSMseyvh6dx672wvDfaZYklzY"
-# Supabase parolingizni PAROLINGIZ o'rniga yozing:
+BOT_TOKEN = "8895763314:AAHXbwvgDqRtLU832zqnT3fSUf7uMGeFHS4"
+# Supabase parolingizni moslang:
 DB_URL = "postgresql://postgres:minlienferuza@db.traxqticwscihsnargez.supabase.co:5432/postgres"
 
 ADMIN_ID = 5736752273  # Sizning Telegram ID ingiz
 
-# Shaxsiy yoki ochiq kanallar ro'yxati (ID va taklif havolalari)
+# Kanallar ro'yxati (ID raqami va taklif havolasi)
 CHANNELS = [
-    {"id": -1003944114251, "link": "https://t.me/+YSnX_ktYFEoxNzAy"},
-    {"id": -1004298187068, "link": "https://t.me/MLdublaj"}
+    {"id": -1003944114251, "link": "https://t.me/+YSnX_ktYFEoxNzAy"}, # Shaxsiy kanal
+    {"id": "@MLdublaj", "link": "https://t.me/MLdublaj"}              # Ommaviy kanal
 ]
 
 bot = telebot.TeleBot(BOT_TOKEN)
@@ -26,7 +26,6 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     cur = conn.cursor()
-    # Movies jadvali
     cur.execute('''
         CREATE TABLE IF NOT EXISTS movies (
             code INTEGER PRIMARY KEY,
@@ -34,7 +33,6 @@ def init_db():
             caption TEXT
         )
     ''')
-    # Users jadvali
     cur.execute('''
         CREATE TABLE IF NOT EXISTS users (
             user_id BIGINT PRIMARY KEY
@@ -135,7 +133,7 @@ def del_range_cmd(message):
         conn.close()
         bot.send_message(message.chat.id, f"✅ {start_code}-{end_code} oralig'idagi kinolar o'chirildi.")
     except Exception:
-        bot.send_message(message.chat.id, "Xatolik! Buyruq formati: /del_range 10 20 (masalan, 10 dan 20 gacha bo'lgan kodlar o'chiriladi).")
+        bot.send_message(message.chat.id, "Xatolik! Buyruq formati: /del_range 10 20")
 
 # --- KINO KODINI QIDIRISH ---
 @bot.message_handler(func=lambda m: m.text and m.text.isdigit())
@@ -192,3 +190,4 @@ def run_flask():
 if __name__ == '__main__':
     Thread(target=run_flask).start()
     bot.infinity_polling()
+
