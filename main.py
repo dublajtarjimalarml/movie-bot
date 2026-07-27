@@ -7,9 +7,11 @@ from telebot import types
 
 # --- SOZLAMALAR ---
 BOT_TOKEN = "8895763314:AAGk8HVxRRiSMseyvh6dx672wvDfaZYklzY"
-ADMIN_ID = 5736752273  # O'zingizning numeric Telegram ID'ingiz
 MOVIE_CHANNEL_ID = -1004374661522  # Baza kanali ID'si
-REQUIRED_CHANNEL_ID = -1003944114251  # Obuna kanali ID'si
+
+# Majburiy kanallar (Ikkalasining ham ID'sini yozing)
+CHANNEL_1_ID = -1003944114251  # 1-kanal ID'si
+CHANNEL_2_ID = --1004298187068  # 2-kanal ID'sini shu yerga yozing
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
@@ -17,6 +19,7 @@ bot = telebot.TeleBot(BOT_TOKEN)
 def init_db():
     conn = sqlite3.connect('database.db')
     cursor = conn.cursor()
+    # Kinolar jadvali
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS movies (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -24,34 +27,53 @@ def init_db():
             message_id INTEGER
         )
     ''')
+    # Foydalanuvchilar jadvali (Statistika uchun)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY
+        )
+    ''')
     conn.commit()
     conn.close()
 
 init_db()
 
-# --- OBUNANI TEKSHIRISH ---
+# Foydalanuvchini bazaga qo'shish
+def register_user(user_id):
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
+    conn.commit()
+    conn.close()
+
+# --- OBUNANI TEKSHIRISH (2 TA KANAL UCHUN) ---
 def check_subscription(user_id):
     try:
-        member = bot.get_chat_member(REQUIRED_CHANNEL_ID, user_id)
-        return member.status in ['creator', 'administrator', 'member']
+        member1 = bot.get_chat_member(CHANNEL_1_ID, user_id)
+        member2 = bot.get_chat_member(CHANNEL_2_ID, user_id)
+        
+        status1 = member1.status in ['creator', 'administrator', 'member']
+        status2 = member2.status in ['creator', 'administrator', 'member']
+        
+        return status1 and status2
     except Exception:
         return True
 
 # --- START BUYRUG'I ---
 @bot.message_handler(commands=['start'])
 def start_cmd(message):
+    register_user(message.from_user.id)
+    
     if not check_subscription(message.from_user.id):
-        bot.reply_to(message, "❌ Botdan foydalanish uchun avval kanalga obuna bo'ling!")
+        bot.reply_to(message, "❌ Botdan foydalanish uchun quyidagi barcha kanallarga obuna bo'ling!")
         return
-    bot.reply_to(message, "Assalomu alaykum! Kinoni ko'rish uchun **kino kodini** (masalan: 1) yuboring.", parse_mode="Markdown")
+    bot.reply_to(message, "Assalomu alaykum! Kinoni ko'rish uchun **kino kodini** yuboring.", parse_mode="Markdown")
 
 # --- ADMIN BUYRUQLARI ---
 
 # 1. Bittalab qo'shish: /add [kino_kodi] [message_id]
 @bot.message_handler(commands=['add'])
 def add_movie(message):
-    if message.from_user.id != ADMIN_ID:
-        return
     try:
         args = message.text.split()
         if len(args) != 3:
@@ -74,12 +96,10 @@ def add_movie(message):
 # 2. Ko'plab qismlarni birda qo'shish: /add_range [kino_kodi] [boshlang'ich_id] [oxirgi_id]
 @bot.message_handler(commands=['add_range'])
 def add_range_movie(message):
-    if message.from_user.id != ADMIN_ID:
-        return
     try:
         args = message.text.split()
         if len(args) != 4:
-            bot.reply_to(message, "❌ Namuna: `/add_range 1 122 130`", parse_mode="Markdown")
+            bot.reply_to(message, "❌ Namuna: `/add_range 12 129 140`", parse_mode="Markdown")
             return
 
         movie_code = args[1]
@@ -105,11 +125,9 @@ def add_range_movie(message):
     except Exception as e:
         bot.reply_to(message, f"❌ Xatolik: {e}")
 
-# 3. O'chirish: /del [kino_kodi]
+# 3. Kino kodi bo'yicha hammasini o'chirish: /del [kino_kodi]
 @bot.message_handler(commands=['del'])
 def del_movie(message):
-    if message.from_user.id != ADMIN_ID:
-        return
     try:
         args = message.text.split()
         if len(args) != 2:
@@ -127,11 +145,54 @@ def del_movie(message):
     except Exception as e:
         bot.reply_to(message, f"❌ Xatolik: {e}")
 
+# 4. Aniq ID diapazonidagi xato qismlarni o'chirish: /del_range [kino_kodi] [boshlang'ich_id] [oxirgi_id]
+@bot.message_handler(commands=['del_range'])
+def del_range_movie(message):
+    try:
+        args = message.text.split()
+        if len(args) != 4:
+            bot.reply_to(message, "❌ Namuna: `/del_range 5 126 128`", parse_mode="Markdown")
+            return
+
+        movie_code = args[1]
+        start_id = int(args[2])
+        end_id = int(args[3])
+
+        conn = sqlite3.connect('database.db')
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM movies WHERE code = ? AND message_id BETWEEN ? AND ?",
+            (movie_code, start_id, end_id)
+        )
+        deleted_count = cursor.rowcount
+        conn.commit()
+        conn.close()
+
+        bot.reply_to(message, f"🗑 **Kino kodi:** `{movie_code}`\n`{start_id}` dan `{end_id}` gacha bo'lgan {deleted_count} ta qism o'chirildi!", parse_mode="Markdown")
+    except Exception as e:
+        bot.reply_to(message, f"❌ Xatolik: {e}")
+
+# 5. Obunachilar soni (Statistika): /stat
+@bot.message_handler(commands=['stat'])
+def get_stats(message):
+    try:
+        conn = sqlite3.connect('database.db')
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM users")
+        user_count = cursor.fetchone()[0]
+        conn.close()
+
+        bot.reply_to(message, f"📊 **Bot statistikasi:**\n\n👤 Jami obunachilar (foydalanuvchilar): **{user_count}** ta", parse_mode="Markdown")
+    except Exception as e:
+        bot.reply_to(message, f"❌ Xatolik: {e}")
+
 # --- FOYDALANUVCHIDAN RAQAM KELGANDA KINONI YUBORISH ---
 @bot.message_handler(func=lambda message: True)
 def get_movie(message):
+    register_user(message.from_user.id)
+
     if not check_subscription(message.from_user.id):
-        bot.reply_to(message, "❌ Botdan foydalanish uchun avval kanalga obuna bo'ling!")
+        bot.reply_to(message, "❌ Botdan foydalanish uchun quyidagi barcha kanallarga obuna bo'ling!")
         return
 
     code = message.text.strip()
@@ -147,7 +208,6 @@ def get_movie(message):
 
     ids_list = [r[0] for r in rows]
 
-    # Agar bitta qism bo'lsa - to'g'ridan-to'g'ri yuboradi
     if len(ids_list) == 1:
         try:
             bot.copy_message(
@@ -158,7 +218,6 @@ def get_movie(message):
         except Exception:
             bot.send_message(message.chat.id, "Xatolik yuz berdi. Bot baza kanalida Admin ekanligini tekshiring.")
     else:
-        # Agar ko'p qismli drama bo'lsa - tugmalar orqali chiqarib beradi
         markup = types.InlineKeyboardMarkup(row_width=3)
         buttons = []
         for idx, msg_id in enumerate(ids_list, start=1):
